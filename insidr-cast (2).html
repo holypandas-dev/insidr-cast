@@ -1,0 +1,742 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>insidr.cast</title>
+<script src="https://unpkg.com/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&display=swap');
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { background: #0a0f1a; color: #fff; font-family: 'DM Sans', sans-serif; min-height: 100vh; padding-bottom: 60px; }
+
+  .header { position: sticky; top: 0; z-index: 10; background: rgba(10,15,26,0.97); backdrop-filter: blur(12px); border-bottom: 1px solid rgba(255,255,255,0.07); padding: 18px 16px 0; }
+  .header-top { display: flex; justify-content: space-between; align-items: center; margin-bottom: 14px; }
+  .logo { font-size: 20px; font-weight: 700; letter-spacing: -0.03em; }
+  .logo span { color: #00C896; }
+  .live-badge { display: inline-flex; align-items: center; gap: 6px; background: rgba(0,200,150,0.1); border: 1px solid rgba(0,200,150,0.2); border-radius: 20px; padding: 3px 9px; margin-left: 10px; font-size: 10px; font-weight: 600; color: #00C896; letter-spacing: 0.07em; }
+  .dot { position: relative; display: inline-flex; width: 8px; height: 8px; }
+  .dot-ring { position: absolute; inset: 0; border-radius: 50%; background: #00C896; opacity: 0.5; animation: ping 1.4s cubic-bezier(0,0,0.2,1) infinite; }
+  .dot-core { position: relative; border-radius: 50%; width: 8px; height: 8px; background: #00C896; }
+  .subtitle { font-size: 11px; color: rgba(255,255,255,0.28); margin-top: 3px; }
+  .scrape-btn { background: #00C896; color: #0a0f1a; border: none; border-radius: 8px; padding: 8px 16px; font-weight: 700; font-size: 12px; cursor: pointer; font-family: inherit; }
+  .scrape-btn:disabled { background: rgba(0,200,150,0.12); color: #00C896; border: 1px solid rgba(0,200,150,0.3); cursor: default; }
+
+  .tabs { display: flex; }
+  .tab { padding: 8px 16px; background: none; border: none; cursor: pointer; font-size: 13px; font-weight: 600; color: rgba(255,255,255,0.3); border-bottom: 2px solid transparent; font-family: inherit; text-transform: capitalize; transition: all 0.15s; }
+  .tab.active { color: #fff; border-bottom-color: #00C896; }
+
+  .content { padding: 16px; }
+
+  .cats { display: flex; gap: 6px; overflow-x: auto; padding-bottom: 12px; margin-bottom: 12px; scrollbar-width: none; }
+  .cats::-webkit-scrollbar { display: none; }
+  .cat { flex-shrink: 0; padding: 5px 13px; border-radius: 20px; border: 1px solid rgba(255,255,255,0.1); background: transparent; color: rgba(255,255,255,0.4); font-size: 12px; font-weight: 600; cursor: pointer; font-family: inherit; transition: all 0.15s; }
+  .cat.active { border-color: #00C896; background: rgba(0,200,150,0.15); color: #00C896; }
+
+  .stats { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 8px; margin-bottom: 16px; }
+  .stat { background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.07); border-radius: 10px; padding: 11px 13px; }
+  .stat-val { font-size: 22px; font-weight: 700; color: #fff; font-family: monospace; }
+  .stat-label { font-size: 10px; color: rgba(255,255,255,0.3); margin-top: 2px; font-weight: 500; text-transform: uppercase; letter-spacing: 0.06em; }
+
+  .feed { display: flex; flex-direction: column; gap: 10px; }
+
+  .card { background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.07); border-radius: 12px; padding: 16px 18px; cursor: pointer; position: relative; overflow: hidden; transition: border-color 0.2s; animation: fadeSlide 0.35s ease both; }
+  .card.top { border-color: rgba(0,200,150,0.28); }
+  .card-stripe { position: absolute; top: 0; left: 0; right: 0; height: 2px; background: linear-gradient(90deg,#00C896,#A78BFA); }
+  .card-row { display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; }
+  .card-left { flex: 1; min-width: 0; }
+  .card-right { text-align: right; flex-shrink: 0; }
+  .badges { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 8px; align-items: center; }
+  .badge { font-size: 10px; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; padding: 2px 7px; border-radius: 4px; }
+  .card-title { font-size: 15px; font-weight: 600; color: #fff; margin-bottom: 4px; line-height: 1.3; }
+  .card-meta { font-size: 12px; color: rgba(255,255,255,0.4); margin-bottom: 10px; }
+  .card-pay { font-size: 15px; font-weight: 700; color: #fff; font-family: monospace; }
+  .card-deadline { font-size: 11px; color: rgba(255,255,255,0.3); margin-top: 2px; }
+
+  .bar-wrap { display: flex; align-items: center; gap: 8px; }
+  .bar-track { flex: 1; height: 3px; background: rgba(255,255,255,0.08); border-radius: 2px; }
+  .bar-fill { height: 100%; border-radius: 2px; transition: width 0.8s ease; }
+  .bar-pct { font-size: 11px; font-weight: 700; min-width: 32px; }
+
+  .card-body { margin-top: 14px; padding-top: 14px; border-top: 1px solid rgba(255,255,255,0.08); display: none; }
+  .card-body.open { display: block; animation: fadeIn 0.2s ease; }
+  .card-desc { font-size: 13px; color: rgba(255,255,255,0.6); line-height: 1.65; margin-bottom: 12px; }
+  .reqs { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 12px; }
+  .req { font-size: 11px; color: rgba(255,255,255,0.45); background: rgba(255,255,255,0.06); border-radius: 6px; padding: 3px 9px; }
+  .tags-row { display: flex; flex-wrap: wrap; gap: 5px; margin-bottom: 14px; }
+  .tag { font-size: 10px; color: #A78BFA; background: rgba(167,139,250,0.1); border-radius: 5px; padding: 2px 7px; }
+  .card-actions { display: flex; gap: 8px; }
+  .btn-apply { flex: 1; padding: 9px 0; border-radius: 8px; border: none; cursor: pointer; background: #00C896; color: #0a0f1a; font-weight: 700; font-size: 13px; font-family: inherit; }
+  .btn-save { padding: 9px 14px; border-radius: 8px; cursor: pointer; background: rgba(255,255,255,0.06); border: 1px solid rgba(255,255,255,0.1); color: rgba(255,255,255,0.55); font-size: 13px; font-family: inherit; }
+
+  .empty { text-align: center; padding: 60px 20px; }
+  .empty-icon { font-size: 36px; margin-bottom: 14px; }
+  .empty-title { font-size: 15px; font-weight: 600; color: rgba(255,255,255,0.6); margin-bottom: 6px; }
+  .empty-sub { font-size: 13px; color: rgba(255,255,255,0.3); }
+
+  .status-bar { background: rgba(0,200,150,0.08); border: 1px solid rgba(0,200,150,0.2); border-radius: 8px; padding: 10px 14px; margin-bottom: 16px; font-size: 12px; color: #00C896; display: flex; align-items: center; gap: 8px; }
+  .spin { width: 8px; height: 8px; border: 1.5px solid #00C896; border-top-color: transparent; border-radius: 50%; animation: spin 0.7s linear infinite; flex-shrink: 0; }
+
+  .log-row { display: flex; justify-content: space-between; align-items: center; font-size: 12px; color: rgba(255,255,255,0.45); padding: 8px 12px; background: rgba(255,255,255,0.03); border-radius: 8px; margin-bottom: 6px; }
+  .log-source { font-weight: 600; color: rgba(255,255,255,0.7); min-width: 140px; }
+
+  .footer { margin-top: 24px; padding: 16px; background: rgba(0,200,150,0.06); border: 1px solid rgba(0,200,150,0.15); border-radius: 12px; text-align: center; }
+  .footer-title { font-size: 12px; font-weight: 600; color: #00C896; margin-bottom: 3px; }
+  .footer-sub { font-size: 11px; color: rgba(255,255,255,0.3); }
+
+  .toast { position: fixed; top: 16px; left: 50%; transform: translateX(-50%); z-index: 100; background: #0d1424; border-radius: 10px; padding: 10px 18px; font-size: 13px; font-weight: 600; animation: fadeIn 0.2s ease; white-space: nowrap; max-width: 90vw; display: none; }
+
+  .skeletons { display: flex; flex-direction: column; gap: 10px; }
+  .skeleton { height: 88px; background: rgba(255,255,255,0.03); border-radius: 12px; border: 1px solid rgba(255,255,255,0.06); }
+
+  /* ── BRAND FORM ── */
+  .form-wrap { max-width: 600px; }
+  .form-intro { background: linear-gradient(135deg, rgba(0,200,150,0.08), rgba(167,139,250,0.08)); border: 1px solid rgba(0,200,150,0.2); border-radius: 14px; padding: 20px; margin-bottom: 24px; }
+  .form-intro-title { font-size: 18px; font-weight: 700; color: #fff; margin-bottom: 6px; }
+  .form-intro-sub { font-size: 13px; color: rgba(255,255,255,0.5); line-height: 1.6; }
+  .form-intro-badges { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 12px; }
+  .form-intro-badge { font-size: 11px; font-weight: 600; padding: 4px 10px; border-radius: 20px; background: rgba(0,200,150,0.12); color: #00C896; border: 1px solid rgba(0,200,150,0.2); }
+  .field { margin-bottom: 18px; }
+  .field label { display: block; font-size: 12px; font-weight: 600; color: rgba(255,255,255,0.5); text-transform: uppercase; letter-spacing: 0.07em; margin-bottom: 7px; }
+  .field input, .field select, .field textarea {
+    width: 100%; background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.1);
+    border-radius: 10px; padding: 11px 14px; color: #fff; font-size: 14px; font-family: inherit;
+    outline: none; transition: border-color 0.15s;
+  }
+  .field input:focus, .field select:focus, .field textarea:focus { border-color: #00C896; }
+  .field input::placeholder, .field textarea::placeholder { color: rgba(255,255,255,0.2); }
+  .field select option { background: #1a2030; color: #fff; }
+  .field textarea { resize: vertical; min-height: 90px; line-height: 1.6; }
+  .field-row { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+  .pill-group { display: flex; flex-wrap: wrap; gap: 8px; }
+  .pill { padding: 7px 14px; border-radius: 20px; border: 1px solid rgba(255,255,255,0.12); background: transparent; color: rgba(255,255,255,0.4); font-size: 12px; font-weight: 600; cursor: pointer; font-family: inherit; transition: all 0.15s; }
+  .pill.selected { border-color: #00C896; background: rgba(0,200,150,0.15); color: #00C896; }
+  .budget-track { position: relative; margin-top: 8px; }
+  .budget-track input[type=range] { width: 100%; accent-color: #00C896; }
+  .budget-labels { display: flex; justify-content: space-between; font-size: 11px; color: rgba(255,255,255,0.3); margin-top: 4px; }
+  .budget-val { text-align: center; font-size: 20px; font-weight: 700; color: #00C896; font-family: monospace; margin-bottom: 8px; }
+  .submit-btn { width: 100%; padding: 14px; background: #00C896; color: #0a0f1a; border: none; border-radius: 12px; font-size: 15px; font-weight: 700; cursor: pointer; font-family: inherit; transition: opacity 0.15s; margin-top: 8px; }
+  .submit-btn:disabled { opacity: 0.5; cursor: default; }
+  .submit-btn:hover:not(:disabled) { opacity: 0.9; }
+  .form-success { display: none; text-align: center; padding: 48px 20px; animation: fadeIn 0.3s ease; }
+  .form-success-icon { font-size: 48px; margin-bottom: 16px; }
+  .form-success-title { font-size: 20px; font-weight: 700; color: #fff; margin-bottom: 8px; }
+  .form-success-sub { font-size: 14px; color: rgba(255,255,255,0.45); line-height: 1.6; margin-bottom: 24px; }
+  .form-success-preview { background: rgba(0,200,150,0.06); border: 1px solid rgba(0,200,150,0.2); border-radius: 12px; padding: 16px; text-align: left; margin-bottom: 20px; }
+  .form-success-preview-title { font-size: 13px; font-weight: 700; color: #00C896; margin-bottom: 10px; text-transform: uppercase; letter-spacing: 0.06em; }
+  .preview-row { display: flex; justify-content: space-between; font-size: 12px; padding: 5px 0; border-bottom: 1px solid rgba(255,255,255,0.05); }
+  .preview-row:last-child { border-bottom: none; }
+  .preview-label { color: rgba(255,255,255,0.4); }
+  .preview-val { color: #fff; font-weight: 600; }
+  .btn-another { background: transparent; border: 1px solid rgba(255,255,255,0.15); color: rgba(255,255,255,0.6); border-radius: 10px; padding: 10px 22px; font-size: 13px; font-weight: 600; cursor: pointer; font-family: inherit; }
+
+  @keyframes fadeSlide { from{opacity:0;transform:translateY(10px)} to{opacity:1;transform:translateY(0)} }
+  @keyframes fadeIn { from{opacity:0} to{opacity:1} }
+  @keyframes ping { 75%,100%{transform:scale(2);opacity:0} }
+  @keyframes spin { to{transform:rotate(360deg)} }
+</style>
+</head>
+<body>
+
+<div class="toast" id="toast"></div>
+
+<div class="header">
+  <div class="header-top">
+    <div>
+      <div style="display:flex;align-items:center">
+        <span class="logo">insidr<span>.</span>cast</span>
+        <span class="live-badge">
+          <span class="dot"><span class="dot-ring"></span><span class="dot-core"></span></span>
+          LIVE
+        </span>
+      </div>
+      <div class="subtitle" id="subtitle">Loading...</div>
+    </div>
+    <button class="scrape-btn" id="scrape-btn" onclick="runScrape()">Scrape now</button>
+  </div>
+  <div class="tabs">
+    <button class="tab active" onclick="setTab('feed',this)">Feed</button>
+    <button class="tab" onclick="setTab('post',this)">Post a Brief</button>
+    <button class="tab" onclick="setTab('log',this)">Log</button>
+  </div>
+</div>
+
+<div class="content">
+  <div id="status-bar" class="status-bar" style="display:none">
+    <span class="spin"></span>
+    <span id="status-text"></span>
+  </div>
+
+  <div id="feed-tab">
+    <div class="cats" id="cats"></div>
+    <div class="stats" id="stats" style="display:none"></div>
+    <div id="skeletons" class="skeletons">
+      <div class="skeleton"></div><div class="skeleton"></div>
+      <div class="skeleton"></div><div class="skeleton"></div><div class="skeleton"></div>
+    </div>
+    <div id="empty" class="empty" style="display:none">
+      <div class="empty-icon">🎬</div>
+      <div class="empty-title">No casting calls yet</div>
+      <div class="empty-sub">Hit "Scrape now" to pull live listings</div>
+    </div>
+    <div class="feed" id="feed"></div>
+    <div class="footer" id="footer" style="display:none">
+      <div class="footer-title">Powered by Insidr AI</div>
+      <div class="footer-sub" id="footer-sub"></div>
+    </div>
+  </div>
+
+
+  <!-- BRAND SUBMISSION TAB -->
+  <div id="post-tab" style="display:none">
+    <div class="form-wrap">
+      <div id="form-view">
+        <div class="form-intro">
+          <div class="form-intro-title">Post your casting call on Insidr</div>
+          <div class="form-intro-sub">Skip Backstage fees. Post your brief here and get matched with vetted UGC creators, actors, and content creators from the Insidr network — free.</div>
+          <div class="form-intro-badges">
+            <span class="form-intro-badge">Free to post</span>
+            <span class="form-intro-badge">AI-matched creators</span>
+            <span class="form-intro-badge">Live in minutes</span>
+          </div>
+        </div>
+
+        <div class="field">
+          <label>Brand / Company name *</label>
+          <input type="text" id="f-brand" placeholder="e.g. Glow Theory, Nike, Your Brand">
+        </div>
+
+        <div class="field">
+          <label>What type of creator are you looking for? *</label>
+          <div class="pill-group" id="pill-category">
+            <button class="pill" onclick="togglePill(this,'category')">UGC Video</button>
+            <button class="pill" onclick="togglePill(this,'category')">Content Creator</button>
+            <button class="pill" onclick="togglePill(this,'category')">Acting</button>
+            <button class="pill" onclick="togglePill(this,'category')">Modeling</button>
+            <button class="pill" onclick="togglePill(this,'category')">Voiceover</button>
+            <button class="pill" onclick="togglePill(this,'category')">Brand Ambassador</button>
+          </div>
+        </div>
+
+        <div class="field">
+          <label>Where will the content live? (select all that apply)</label>
+          <div class="pill-group" id="pill-platforms">
+            <button class="pill" onclick="togglePill(this,'platforms')">TikTok</button>
+            <button class="pill" onclick="togglePill(this,'platforms')">Instagram Reels</button>
+            <button class="pill" onclick="togglePill(this,'platforms')">Instagram Feed</button>
+            <button class="pill" onclick="togglePill(this,'platforms')">YouTube</button>
+            <button class="pill" onclick="togglePill(this,'platforms')">Facebook Ads</button>
+            <button class="pill" onclick="togglePill(this,'platforms')">Website / E-comm</button>
+          </div>
+        </div>
+
+        <div class="field-row">
+          <div class="field">
+            <label>Location</label>
+            <select id="f-location">
+              <option value="Remote">Remote (anywhere)</option>
+              <option value="Los Angeles, CA">Los Angeles, CA</option>
+              <option value="New York, NY">New York, NY</option>
+              <option value="Miami, FL">Miami, FL</option>
+              <option value="Chicago, IL">Chicago, IL</option>
+              <option value="Other">Other city</option>
+            </select>
+          </div>
+          <div class="field">
+            <label>Deadline</label>
+            <input type="date" id="f-deadline" style="color-scheme:dark">
+          </div>
+        </div>
+
+        <div class="field">
+          <label>Budget per creator</label>
+          <div class="budget-val" id="budget-display">$500</div>
+          <div class="budget-track">
+            <input type="range" id="f-budget" min="100" max="5000" step="50" value="500" oninput="updateBudget(this.value)">
+            <div class="budget-labels"><span>$100</span><span>$5,000</span></div>
+          </div>
+        </div>
+
+        <div class="field">
+          <label>Brief description *</label>
+          <textarea id="f-description" placeholder="Describe what you need — the product, the vibe, the deliverables. More detail = better matches."></textarea>
+        </div>
+
+        <div class="field">
+          <label>Requirements (optional)</label>
+          <input type="text" id="f-req1" placeholder="e.g. Female, ages 22-35" style="margin-bottom:8px">
+          <input type="text" id="f-req2" placeholder="e.g. Must own product within 5 days" style="margin-bottom:8px">
+          <input type="text" id="f-req3" placeholder="e.g. US-based only">
+        </div>
+
+        <div class="field">
+          <label>Your email (we'll send you matched creators)</label>
+          <input type="email" id="f-email" placeholder="brand@example.com">
+        </div>
+
+        <button class="submit-btn" id="submit-btn" onclick="submitBrief()">Post brief to Insidr — free</button>
+      </div>
+
+      <div class="form-success" id="form-success">
+        <div class="form-success-icon">🎬</div>
+        <div class="form-success-title">Brief posted to Insidr</div>
+        <div class="form-success-sub">Your casting call is now live in the feed and being matched to creators in our network. You'll hear from matched creators directly.</div>
+        <div class="form-success-preview" id="success-preview"></div>
+        <button class="btn-another" onclick="resetForm()">Post another brief</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="log-tab" style="display:none">
+    <div style="font-size:10px;font-weight:600;letter-spacing:0.1em;color:rgba(255,255,255,0.25);margin-bottom:10px;text-transform:uppercase">Scrape history</div>
+    <div id="log-list"></div>
+  </div>
+</div>
+
+<script>
+const SB_URL = "https://nuthzitfkblgazxtfxpr.supabase.co";
+const SB_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im51dGh6aXRma2JsZ2F6eHRmeHByIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzg1MTk1MjAsImV4cCI6MjA5NDA5NTUyMH0.IT8h9jShT0BVhimLivNa89HWsxZeK5eL-7wcimWznxU";
+const FC_KEY = "fc-fbdfd96e17c841f687d8564dcab3b74f";
+const HDR = { "apikey": SB_KEY, "Authorization": `Bearer ${SB_KEY}`, "Content-Type": "application/json", "Prefer": "return=representation" };
+
+const CATS = ["All","UGC Video","Content Creator","Acting","Modeling","Voiceover","Brand Ambassador"];
+const TARGETS = [
+  { source:"backstage", label:"Backstage UGC", url:"https://www.backstage.com/casting-calls/ugc-jobs/" },
+  { source:"backstage", label:"Backstage Commercial", url:"https://www.backstage.com/casting-calls/commercial-modeling-jobs/" },
+  { source:"casting_frontier", label:"Casting Frontier", url:"https://www.castingfrontier.com/auditions" },
+  { source:"mandy", label:"Mandy.com", url:"https://www.mandy.com/us/castingcalls" },
+];
+
+const REDDIT_SUBS = [
+  { sub:"ugcdeals",     label:"r/ugcdeals",      category:"UGC Video" },
+  { sub:"HireaCreator", label:"r/HireaCreator",   category:"Content Creator" },
+  { sub:"VoiceActing",  label:"r/VoiceActing",    category:"Voiceover" },
+  { sub:"actingjobs",   label:"r/actingjobs",     category:"Acting" },
+];
+const SRC = {
+  backstage:{label:"Backstage",col:"#00C896"}, casting_frontier:{label:"Casting Frontier",col:"#00C896"},
+  mandy:{label:"Mandy",col:"#00C896"}, casting_networks:{label:"Casting Networks",col:"#00C896"},
+  joinbrands:{label:"JoinBrands",col:"#A78BFA"}, billo:{label:"Billo",col:"#A78BFA"},
+  insense:{label:"Insense",col:"#A78BFA"}, instagram:{label:"Instagram",col:"#FB923C"},
+  tiktok:{label:"TikTok",col:"#FB923C"}, threads:{label:"Threads",col:"#FB923C"},
+  facebook:{label:"Facebook",col:"#FB923C"}, linkedin:{label:"LinkedIn",col:"#FB923C"},
+  reddit:{label:"Reddit",col:"#FF6B35"},
+  insidr_direct:{label:"Insidr Direct",col:"#00C896"},
+};
+
+let allCalls = [], activeCat = "All", activeTab = "feed";
+
+async function sbGet(qs) {
+  const r = await fetch(`${SB_URL}/rest/v1/${qs}`, { headers: HDR });
+  return r.ok ? r.json() : [];
+}
+async function sbPost(table, data) {
+  const r = await fetch(`${SB_URL}/rest/v1/${table}`, { method:"POST", headers: HDR, body: JSON.stringify(data) });
+  return r.ok;
+}
+
+function scoreCall(c) {
+  let s = 65;
+  const t = `${c.title||""} ${c.description||""} ${(c.tags||[]).join(" ")}`.toLowerCase();
+  if (c.is_ugc) s += 12; if (c.is_remote) s += 8;
+  if (["travel","lifestyle","fashion","beauty","wellness","creator"].some(w=>t.includes(w))) s += 8;
+  if (["tiktok","instagram","reels","short"].some(w=>t.includes(w))) s += 6;
+  if (["la","los angeles","remote","california"].some(w=>t.includes(w))) s += 4;
+  if (["UGC Video","Content Creator"].includes(c.category)) s += 5;
+  return Math.min(s, 99);
+}
+
+function barColor(s) { return s >= 88 ? "#00C896" : s >= 74 ? "#A78BFA" : "#FB923C"; }
+
+function renderCard(c, i) {
+  const top = c.match_score >= 88;
+  const src = SRC[c.source] || { label: c.source, col: "#888" };
+  const reqs = Array.isArray(c.requirements) ? c.requirements : (typeof c.requirements === 'string' ? JSON.parse(c.requirements) : []);
+  const tags = Array.isArray(c.tags) ? c.tags : (typeof c.tags === 'string' ? JSON.parse(c.tags) : []);
+  const col = barColor(c.match_score);
+
+  return `
+    <div class="card ${top?'top':''}" style="animation-delay:${Math.min(i*0.06,0.4)}s" onclick="toggleCard(this)">
+      ${top ? '<div class="card-stripe"></div>' : ''}
+      <div class="card-row">
+        <div class="card-left">
+          <div class="badges">
+            <span class="badge" style="background:${src.col}18;color:${src.col};border:1px solid ${src.col}33">${src.label}</span>
+            <span class="badge" style="background:rgba(255,255,255,0.06);color:rgba(255,255,255,0.4)">${c.category}</span>
+            ${top ? '<span class="badge" style="background:rgba(0,200,150,0.15);color:#00C896">TOP MATCH</span>' : ''}
+            ${c.is_remote ? '<span class="badge" style="background:rgba(167,139,250,0.12);color:#A78BFA">REMOTE</span>' : ''}
+          </div>
+          <div class="card-title">${c.title}</div>
+          <div class="card-meta">${c.brand} · ${c.location}</div>
+          <div class="bar-wrap">
+            <div class="bar-track"><div class="bar-fill" style="width:${c.match_score}%;background:${col}"></div></div>
+            <span class="bar-pct" style="color:${col}">${c.match_score}%</span>
+          </div>
+        </div>
+        <div class="card-right">
+          <div class="card-pay">${c.pay}</div>
+          <div class="card-deadline">Due ${c.deadline}</div>
+        </div>
+      </div>
+      <div class="card-body">
+        <p class="card-desc">${c.description}</p>
+        ${reqs.length ? `<div class="reqs">${reqs.map(r=>`<span class="req">${r}</span>`).join('')}</div>` : ''}
+        ${tags.length ? `<div class="tags-row">${tags.map(t=>`<span class="tag">#${t}</span>`).join('')}</div>` : ''}
+        <div class="card-actions">
+          <button class="btn-apply" onclick="event.stopPropagation();window.open('${c.apply_url||'#'}','_blank')">Apply via Insidr</button>
+          <button class="btn-save" onclick="event.stopPropagation()">Save</button>
+        </div>
+      </div>
+    </div>`;
+}
+
+function toggleCard(el) {
+  el.querySelector('.card-body').classList.toggle('open');
+}
+
+function renderFeed() {
+  const filtered = activeCat === "All" ? allCalls : allCalls.filter(c => c.category === activeCat);
+  const top = filtered.filter(c => c.match_score >= 88).length;
+  const remote = filtered.filter(c => c.is_remote).length;
+
+  document.getElementById('skeletons').style.display = 'none';
+
+  if (filtered.length === 0) {
+    document.getElementById('empty').style.display = 'block';
+    document.getElementById('stats').style.display = 'none';
+    document.getElementById('feed').innerHTML = '';
+    document.getElementById('footer').style.display = 'none';
+    return;
+  }
+
+  document.getElementById('empty').style.display = 'none';
+  document.getElementById('stats').style.display = 'grid';
+  document.getElementById('stats').innerHTML = `
+    <div class="stat"><div class="stat-val">${filtered.length}</div><div class="stat-label">Total</div></div>
+    <div class="stat"><div class="stat-val">${top}</div><div class="stat-label">Top match</div></div>
+    <div class="stat"><div class="stat-val">${remote}</div><div class="stat-label">Remote</div></div>
+  `;
+  document.getElementById('feed').innerHTML = filtered.map((c,i) => renderCard(c,i)).join('');
+  document.getElementById('footer').style.display = 'block';
+  document.getElementById('footer-sub').textContent = `${allCalls.length} calls · AI match scoring · Live Supabase sync`;
+}
+
+function renderCats() {
+  document.getElementById('cats').innerHTML = CATS.map(c =>
+    `<button class="cat ${c===activeCat?'active':''}" onclick="setCat('${c}')">${c}</button>`
+  ).join('');
+}
+
+function setCat(c) { activeCat = c; renderCats(); renderFeed(); }
+
+function setTab(tab, btn) {
+  activeTab = tab;
+  document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+  btn.classList.add('active');
+  document.getElementById('feed-tab').style.display = tab === 'feed' ? 'block' : 'none';
+  document.getElementById('post-tab').style.display = tab === 'post' ? 'block' : 'none';
+  document.getElementById('log-tab').style.display = tab === 'log' ? 'block' : 'none';
+  if (tab === 'log') loadLog();
+}
+
+function showToast(msg, col = "#00C896") {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.style.color = col;
+  t.style.borderColor = col + '44';
+  t.style.display = 'block';
+  setTimeout(() => t.style.display = 'none', 4000);
+}
+
+function setStatus(msg) {
+  const bar = document.getElementById('status-bar');
+  if (msg) { bar.style.display = 'flex'; document.getElementById('status-text').textContent = msg; }
+  else bar.style.display = 'none';
+}
+
+async function loadCalls() {
+  const data = await sbGet("casting_calls?is_active=eq.true&order=match_score.desc,scraped_at.desc&limit=60");
+  allCalls = data;
+  const now = new Date();
+  document.getElementById('subtitle').textContent = `Updated ${now.toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'})} · ${allCalls.length} calls stored`;
+  renderCats();
+  renderFeed();
+}
+
+async function loadLog() {
+  const data = await sbGet("scrape_log?order=scraped_at.desc&limit=20");
+  const list = document.getElementById('log-list');
+  if (!data.length) { list.innerHTML = '<div style="text-align:center;padding:40px 20px;color:rgba(255,255,255,0.25);font-size:13px">No history yet</div>'; return; }
+  list.innerHTML = data.map(l => `
+    <div class="log-row">
+      <span class="log-source">${l.source}</span>
+      <span>${l.calls_found} calls</span>
+      <span>${new Date(l.scraped_at).toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'})}</span>
+      <span style="color:${l.status==='success'?'#00C896':l.status==='empty'?'#FB923C':'#ef4444'};font-weight:600">${l.status}</span>
+    </div>`).join('');
+}
+
+async function scrapeTarget(target) {
+  setStatus(`Fetching ${target.label}...`);
+  try {
+    const res = await fetch("https://api.firecrawl.dev/v1/extract", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "Authorization": `Bearer ${FC_KEY}` },
+      body: JSON.stringify({
+        urls: [target.url],
+        prompt: "Extract all casting calls, auditions, UGC briefs, and creator opportunities. For each: title, brand, description, category (UGC Video/Acting/Modeling/Voiceover/Content Creator/Brand Ambassador), pay, location, deadline, requirements array, is_remote boolean, is_ugc boolean, tags array, apply_url.",
+        schema: { type:"object", properties:{ casting_calls:{ type:"array", items:{ type:"object", properties:{ title:{type:"string"}, brand:{type:"string"}, description:{type:"string"}, category:{type:"string"}, pay:{type:"string"}, location:{type:"string"}, deadline:{type:"string"}, requirements:{type:"array",items:{type:"string"}}, is_remote:{type:"boolean"}, is_ugc:{type:"boolean"}, tags:{type:"array",items:{type:"string"}}, apply_url:{type:"string"} } } } } }
+      }),
+    });
+    if (!res.ok) return 0;
+    const data = await res.json();
+    const calls = data?.data?.casting_calls || data?.data?.[0]?.casting_calls || data?.casting_calls || [];
+    if (!calls.length) { await sbPost("scrape_log", {source:target.source,calls_found:0,status:"empty"}); return 0; }
+    const rows = calls.map(c => ({ title:c.title||"Untitled", brand:c.brand||"Unknown", description:c.description||"", category:c.category||"Content Creator", pay:c.pay||"Not specified", location:c.location||"Remote", deadline:c.deadline||"Rolling", source:target.source, source_url:target.url, requirements:c.requirements||[], match_score:scoreCall(c), tags:c.tags||[], is_remote:!!c.is_remote, is_ugc:!!c.is_ugc, is_active:true, apply_url:c.apply_url||target.url, scraped_at:new Date().toISOString() }));
+    setStatus(`Saving ${rows.length} calls from ${target.label}...`);
+    await sbPost("casting_calls", rows);
+    await sbPost("scrape_log", {source:target.source,calls_found:rows.length,status:"success"});
+    return rows.length;
+  } catch(e) {
+    await sbPost("scrape_log", {source:target.source,calls_found:0,status:"error",error_message:e.message});
+    return 0;
+  }
+}
+
+
+// ── REDDIT SCRAPER ────────────────────────────────────────────────────────────
+function parseRedditPost(post, sub, defaultCategory) {
+  const d = post.data;
+  const text = (d.selftext || '').slice(0, 800);
+  const title = d.title || '';
+  const fullText = (title + ' ' + text).toLowerCase();
+
+  // Skip non-job posts: memes, meta, questions
+  const skipWords = ['question','discussion','advice','help me','thoughts on','how do i','rant','vent','meme','mod post'];
+  if (skipWords.some(w => fullText.includes(w))) return null;
+  // Must look like a paid opportunity
+  const payWords = ['paid','pay','$','rate','budget','compensation','fee','per video','per post','usd','flat rate','hiring'];
+  if (!payWords.some(w => fullText.includes(w))) return null;
+
+  // Extract pay
+  const payMatch = text.match(/\$[\d,]+(?:\.\d+)?(?:\s*[-–]\s*\$[\d,]+)?(?:\/(?:video|post|month|hr|hour))?/i)
+    || title.match(/\$[\d,]+(?:\.\d+)?(?:\s*[-–]\s*\$[\d,]+)?/i);
+  const pay = payMatch ? payMatch[0] : 'See post';
+
+  // Extract deadline
+  const deadlineMatch = text.match(/(?:deadline|due|by|before)\s*[:\-]?\s*([A-Za-z]+ \d{1,2}(?:,? \d{4})?)/i);
+  const deadline = deadlineMatch ? deadlineMatch[1] : 'Rolling';
+
+  // Remote detection
+  const is_remote = !fullText.includes('in person') && !fullText.includes('on location') && !fullText.includes('on-site');
+
+  // Category
+  let category = defaultCategory;
+  if (fullText.includes('ugc') || fullText.includes('user generated')) category = 'UGC Video';
+  else if (fullText.includes('voiceover') || fullText.includes('voice over') || fullText.includes('vo ')) category = 'Voiceover';
+  else if (fullText.includes('model') || fullText.includes('photo shoot')) category = 'Modeling';
+  else if (fullText.includes('actor') || fullText.includes('actress') || fullText.includes('audition')) category = 'Acting';
+  else if (fullText.includes('ambassador') || fullText.includes('brand deal')) category = 'Brand Ambassador';
+
+  // Tags
+  const tagWords = ['tiktok','instagram','youtube','reels','skincare','beauty','fitness','travel','food','lifestyle','fashion','wellness','remote','ugc','paid'];
+  const tags = tagWords.filter(w => fullText.includes(w));
+
+  // Location
+  const laMatch = fullText.match(/\b(los angeles|la\b|hollywood|west hollywood|culver city|burbank)/i);
+  const nyMatch = fullText.match(/\b(new york|nyc|brooklyn|manhattan)/i);
+  const location = laMatch ? 'Los Angeles, CA' : nyMatch ? 'New York, NY' : is_remote ? 'Remote' : 'See post';
+
+  return {
+    title: title.slice(0, 120),
+    brand: 'Posted on r/' + sub,
+    description: text.slice(0, 300) || title,
+    category,
+    pay,
+    location,
+    deadline,
+    source: 'reddit',
+    source_url: 'https://reddit.com' + d.permalink,
+    requirements: [],
+    tags,
+    is_remote,
+    is_ugc: category === 'UGC Video' || fullText.includes('ugc'),
+    is_active: true,
+    apply_url: 'https://reddit.com' + d.permalink,
+    scraped_at: new Date().toISOString(),
+  };
+}
+
+async function scrapeReddit() {
+  let total = 0;
+  for (const sub of REDDIT_SUBS) {
+    setStatus(`Fetching ${sub.label}...`);
+    try {
+      const res = await fetch(
+        `https://www.reddit.com/r/${sub.sub}/new.json?limit=25`,
+        { headers: { 'Accept': 'application/json', 'User-Agent': 'insidr-cast/1.0' } }
+      );
+      if (!res.ok) { await sbPost('scrape_log', {source:'reddit_'+sub.sub, calls_found:0, status:'error', error_message:'HTTP '+res.status}); continue; }
+      const data = await res.json();
+      const posts = data?.data?.children || [];
+      const calls = posts.map(p => parseRedditPost(p, sub.sub, sub.category)).filter(Boolean);
+      calls.forEach(c => { c.match_score = scoreCall(c); });
+
+      if (calls.length > 0) {
+        setStatus(`Saving ${calls.length} calls from ${sub.label}...`);
+        await sbPost('casting_calls', calls);
+        total += calls.length;
+        await sbPost('scrape_log', {source:'reddit_'+sub.sub, calls_found:calls.length, status:'success'});
+      } else {
+        await sbPost('scrape_log', {source:'reddit_'+sub.sub, calls_found:0, status:'empty'});
+      }
+    } catch(e) {
+      await sbPost('scrape_log', {source:'reddit_'+sub.sub, calls_found:0, status:'error', error_message:e.message});
+    }
+  }
+  return total;
+}
+
+async function runScrape() {
+  const btn = document.getElementById('scrape-btn');
+  btn.disabled = true; btn.textContent = 'Scanning...';
+  let total = 0;
+  // Scrape casting sites via Firecrawl
+  for (const t of TARGETS) total += await scrapeTarget(t);
+  // Scrape Reddit (no API key needed)
+  total += await scrapeReddit();
+  setStatus('');
+  btn.disabled = false; btn.textContent = 'Scrape now';
+  if (total > 0) showToast(`✓ Added ${total} new casting calls`);
+  else showToast('Scrape complete — sources may be quiet right now', '#FB923C');
+  await loadCalls();
+}
+
+
+// ── BRAND FORM ──────────────────────────────────────────────────────────────
+const pillSelections = { category: null, platforms: [] };
+
+function togglePill(btn, group) {
+  if (group === 'category') {
+    document.querySelectorAll('#pill-category .pill').forEach(p => p.classList.remove('selected'));
+    btn.classList.add('selected');
+    pillSelections.category = btn.textContent;
+  } else {
+    btn.classList.toggle('selected');
+    pillSelections.platforms = [...document.querySelectorAll('#pill-platforms .pill.selected')].map(p => p.textContent);
+  }
+}
+
+function updateBudget(val) {
+  document.getElementById('budget-display').textContent = '$' + Number(val).toLocaleString();
+}
+
+function resetForm() {
+  document.getElementById('form-view').style.display = 'block';
+  document.getElementById('form-success').style.display = 'none';
+  document.getElementById('f-brand').value = '';
+  document.getElementById('f-description').value = '';
+  document.getElementById('f-email').value = '';
+  document.getElementById('f-req1').value = '';
+  document.getElementById('f-req2').value = '';
+  document.getElementById('f-req3').value = '';
+  document.getElementById('f-budget').value = 500;
+  document.getElementById('budget-display').textContent = '$500';
+  document.querySelectorAll('.pill').forEach(p => p.classList.remove('selected'));
+  pillSelections.category = null; pillSelections.platforms = [];
+}
+
+async function submitBrief() {
+  const brand = document.getElementById('f-brand').value.trim();
+  const description = document.getElementById('f-description').value.trim();
+  const category = pillSelections.category;
+
+  if (!brand) { showToast('Please enter your brand name', '#FB923C'); return; }
+  if (!category) { showToast('Please select a creator type', '#FB923C'); return; }
+  if (!description) { showToast('Please add a brief description', '#FB923C'); return; }
+
+  const btn = document.getElementById('submit-btn');
+  btn.disabled = true; btn.textContent = 'Posting...';
+
+  const budget = document.getElementById('f-budget').value;
+  const location = document.getElementById('f-location').value;
+  const deadlineRaw = document.getElementById('f-deadline').value;
+  const email = document.getElementById('f-email').value.trim();
+  const platforms = pillSelections.platforms;
+
+  const deadline = deadlineRaw
+    ? new Date(deadlineRaw).toLocaleDateString('en-US', { month:'short', day:'numeric', year:'numeric' })
+    : 'Rolling';
+
+  const reqs = [
+    document.getElementById('f-req1').value.trim(),
+    document.getElementById('f-req2').value.trim(),
+    document.getElementById('f-req3').value.trim(),
+  ].filter(Boolean);
+
+  const tags = [
+    ...platforms.map(p => p.toLowerCase().replace(/\s+/g,'')),
+    category.toLowerCase().replace(/\s+/g,'-'),
+    location.toLowerCase().includes('remote') ? 'remote' : location.toLowerCase().split(',')[0].replace(/\s+/g,''),
+  ];
+
+  const title = `${category} Needed – ${brand}`;
+  const pay = '$' + Number(budget).toLocaleString();
+  const is_remote = location === 'Remote';
+  const is_ugc = ['UGC Video','Content Creator','Brand Ambassador'].includes(category);
+
+  // Score it
+  const mockCall = { title, description, tags, category, is_ugc, is_remote, location };
+  const match_score = scoreCall(mockCall);
+
+  const row = {
+    title, brand, description, category, pay, location, deadline,
+    source: 'insidr_direct',
+    source_url: 'https://insidr.co',
+    requirements: reqs,
+    match_score,
+    tags,
+    is_remote,
+    is_ugc,
+    is_active: true,
+    apply_url: email ? `mailto:${email}` : 'https://insidr.co',
+    scraped_at: new Date().toISOString(),
+  };
+
+  const ok = await sbPost('casting_calls', row);
+
+  // Also save to brand_submissions if table exists
+  await sbPost('brand_submissions', {
+    brand, email: email || null, category, budget: Number(budget),
+    location, deadline_raw: deadlineRaw || null,
+    description, requirements: reqs, platforms,
+    submitted_at: new Date().toISOString(),
+    status: 'live',
+  }).catch(() => {});
+
+  btn.disabled = false; btn.textContent = 'Post brief to Insidr — free';
+
+  if (!ok) { showToast('Something went wrong — try again', '#FB923C'); return; }
+
+  // Show success
+  document.getElementById('form-view').style.display = 'none';
+  document.getElementById('form-success').style.display = 'block';
+  document.getElementById('success-preview').innerHTML = `
+    <div class="form-success-preview-title">Your casting call is now live</div>
+    <div class="preview-row"><span class="preview-label">Brand</span><span class="preview-val">${brand}</span></div>
+    <div class="preview-row"><span class="preview-label">Type</span><span class="preview-val">${category}</span></div>
+    <div class="preview-row"><span class="preview-label">Budget</span><span class="preview-val">${pay}</span></div>
+    <div class="preview-row"><span class="preview-label">Location</span><span class="preview-val">${location}</span></div>
+    <div class="preview-row"><span class="preview-label">Deadline</span><span class="preview-val">${deadline}</span></div>
+    <div class="preview-row"><span class="preview-label">Match score</span><span class="preview-val" style="color:#00C896">${match_score}% Insidr match</span></div>
+  `;
+
+  // Reload feed so new call appears
+  await loadCalls();
+}
+
+// Init
+loadCalls();
+</script>
+</body>
+</html>
